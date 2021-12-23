@@ -1,22 +1,22 @@
 /*module.exports = {
-    DiscordToken: function() {
-       return '[token]';
-    }
-    ,
-    RedditSignIn: function() {
-        return {
-            usergent: 'Discord bot by trackpadpro',
-            userame: 'Def13Bot',
-            passord: '[password]',
-            clientd: '[clientID]',
-            clientecret: '[clientSecret]'
-        };
-    }
- }*/
+   DiscordToken: function() {
+      return '[token]';
+   }
+   ,
+   RedditSignIn: function() {
+       return {
+           usergent: 'Discord bot by trackpadpro',
+           userame: 'Def13Bot',
+           passord: '[password]',
+           clientd: '[clientID]',
+           clientecret: '[clientSecret]'
+       };
+   }
+}*/
 
- //Create an imin.js file in the same path with correct [values]
+//Create an imin.js file in the same path with correct [values]
 
- const LogMeIn = require('../imin');
+const LogMeIn = require('../imin');
 const Discord = require('discord.js');
 const client = new Discord.Client();
 client.login(LogMeIn.DiscordToken());
