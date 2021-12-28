@@ -9,7 +9,7 @@
   "license": "ISC",
   "dependencies": {
     "discord.js": "^13.4.0",
-    "snoowrap": "^1.15.2"
+    "snoowrap": "^1.23.0"
   },
   "description": ""
 }
