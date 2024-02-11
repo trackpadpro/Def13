@@ -1,5 +1,5 @@
-## To Use
+## Def13
 
-Register Discord developer bot account
+General purpose functionality. Create an issue if you have a feature request. Reddit API functionality is not planned to return. 
 
-Run bootstrap.bat
+To use this code, you must register a Discord developer bot account
