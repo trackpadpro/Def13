@@ -36,8 +36,16 @@
 *.zip
 *.pdf
 
-# CMake
-build/
+# Visual Studio
+*.ilk
+*.pdb
+.vs/
+x64/
+*.vcxproj.filters
+*.vcxproj.user
 
 # Privacy
 data/
+
+# Dependencies
+deps/

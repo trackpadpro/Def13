@@ -1,14 +1,36 @@
 #include <iostream>
-#include <conio.h>
 #include <fstream>
 #include <string>
 
+#include <dpp/dpp.h>
+
 bool authenticate();
+dpp::cluster* apiDPP;
 
 int main(){
     if(!authenticate()){
         return 1;
     }
+
+    apiDPP->on_slashcommand([](auto event){
+        if (event.command.get_command_name() == "ping"){
+            event.reply("Pong!");
+        }
+    });
+
+    apiDPP->on_ready([](auto event){
+        if (dpp::run_once<struct register_bot_commands>()){
+            apiDPP->global_command_create(
+                dpp::slashcommand("ping", "Ping pong!", apiDPP->me.id)
+            );
+        }
+    });
+
+    //Await events
+    apiDPP->start(dpp::st_wait);
+
+    //Free memory
+    delete apiDPP;
 
     return 0;
 }
@@ -18,10 +40,8 @@ bool authenticate(){
     std::string tokenDiscord;
 
     auth.open("./data/auth/imin.txt", std::ios::in); //"I'm in"
-    if(auth.is_open()){
+    if(auth.good()){
         std::getline(auth, tokenDiscord);
-
-        std::cout<<tokenDiscord;
 
         auth.close();
     }
@@ -45,6 +65,9 @@ bool authenticate(){
 
         auth<<tokenDiscord<<'\n';
     }
+    auth.close();
+
+    apiDPP = new dpp::cluster(tokenDiscord);
 
     return true;
 }
