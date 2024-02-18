@@ -7,6 +7,8 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include <atomic>
+#include <thread>
 
 #include <dpp/dpp.h>
 #include <MatlabEngine.hpp>
@@ -14,9 +16,11 @@
 
 bool authenticate();
 bool initializeMATLAB();
+void threadFFT(const dpp::snowflake channelID);
 std::unique_ptr<dpp::cluster> apiDPP;
 std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
 std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
+std::atomic<bool> activeFFT = false;
 
 int main(){
     if(!authenticate()||!initializeMATLAB()){
@@ -93,7 +97,37 @@ int main(){
 
             event.reply(buffer);
         }
+        else if(event.command.get_command_name()=="fft"){
+            dpp::guild* g = dpp::find_guild(event.command.guild_id);
+            if(!g->connect_member_voice(event.command.get_issuing_user().id)){
+                event.reply("unable to connect to user's voice channel");
+
+                return;
+            }
+
+            activeFFT = true;
+
+            event.reply("beginning fft");
+
+            std::thread t(threadFFT, event.command.channel_id);
+            t.detach();
+        }
+        else if(event.command.get_command_name()=="end"){
+            event.from->disconnect_voice(event.command.guild_id);
+
+            activeFFT = false;
+
+            event.reply(":saluting_face:");
+        }
     });
+
+    //apiDPP->on_voice_receive([](const dpp::voice_receive_t& event){
+    //    if(activeFFT){
+    //        std::basic_string<uint8_t> audio = event.audio_data;
+
+    //        std::cout<<audio.data()<<std::endl;
+    //    }
+    //});
 
     apiDPP->on_ready([](const dpp::ready_t& event){
         if(dpp::run_once<struct setStatus>()){
@@ -104,8 +138,15 @@ int main(){
             apiDPP->global_bulk_command_create({
                 dpp::slashcommand("ping", "ping pong", apiDPP->me.id),
                 dpp::slashcommand("repo", "source code", apiDPP->me.id),
-                dpp::slashcommand("eig", "eigenvalue of matrix", apiDPP->me.id)
+                dpp::slashcommand("eig", "eigenvalue of matrix", apiDPP->me.id),
+                dpp::slashcommand("end", "leave voice channel", apiDPP->me.id)
             });
+
+            apiDPP->guild_bulk_command_create({
+                    dpp::slashcommand("fft", "conducts a fast Fourier transform on your voice", apiDPP->me.id)
+                },
+                1205652542101524522 //tppSandbox
+            );
         }
     });
 
@@ -172,4 +213,30 @@ bool initializeMATLAB(){
     }
 
     return true;
+}
+
+void threadFFT(const dpp::snowflake channelID){
+    dpp::message m(channelID, "--");
+    m = apiDPP->message_create_sync(m);
+
+    m.set_content("----");
+    apiDPP->message_edit(m);
+
+
+    //while(activeFFT){
+    //    apiDPP->message_get(messageID, channelID, [](const dpp::confirmation_callback_t& callback){
+    //        if(callback.is_error()){
+    //            activeFFT = false;
+
+    //            return;
+    //        }
+
+    //        dpp::message m = callback.get<dpp::message>();
+
+    //        m.set_content("edited");
+    //        apiDPP->message_edit(m);
+    //    });
+
+    //    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    //}
 }
