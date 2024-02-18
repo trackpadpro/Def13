@@ -22,6 +22,8 @@ std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
 std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
 std::atomic<bool> activeFFT = false;
 
+std::atomic<bool> flagTest = false;
+
 int main(){
     if(!authenticate()||!initializeMATLAB()){
         return 1;
@@ -121,13 +123,13 @@ int main(){
         }
     });
 
-    //apiDPP->on_voice_receive([](const dpp::voice_receive_t& event){
-    //    if(activeFFT){
-    //        std::basic_string<uint8_t> audio = event.audio_data;
+    apiDPP->on_voice_receive_combined([](const dpp::voice_receive_t& event){
+        if(activeFFT){
+            std::basic_string<uint8_t> audio = event.audio_data;
 
-    //        std::cout<<audio.data()<<std::endl;
-    //    }
-    //});
+            std::cout<<audio.data()<<std::endl;
+        }
+    });
 
     apiDPP->on_ready([](const dpp::ready_t& event){
         if(dpp::run_once<struct setStatus>()){
@@ -139,14 +141,9 @@ int main(){
                 dpp::slashcommand("ping", "ping pong", apiDPP->me.id),
                 dpp::slashcommand("repo", "source code", apiDPP->me.id),
                 dpp::slashcommand("eig", "eigenvalue of matrix", apiDPP->me.id),
+                dpp::slashcommand("fft", "conducts a fast Fourier transform on your voice", apiDPP->me.id),
                 dpp::slashcommand("end", "leave voice channel", apiDPP->me.id)
-            });
-
-            apiDPP->guild_bulk_command_create({
-                    dpp::slashcommand("fft", "conducts a fast Fourier transform on your voice", apiDPP->me.id)
-                },
-                1205652542101524522 //tppSandbox
-            );
+            }); 
         }
     });
 
@@ -219,23 +216,11 @@ void threadFFT(const dpp::snowflake channelID){
     dpp::message m(channelID, "--");
     m = apiDPP->message_create_sync(m);
 
-    m.set_content("----");
-    apiDPP->message_edit(m);
-
-
     //while(activeFFT){
-    //    apiDPP->message_get(messageID, channelID, [](const dpp::confirmation_callback_t& callback){
-    //        if(callback.is_error()){
-    //            activeFFT = false;
+    //    //apiDPP->channel_typing(channelID);
 
-    //            return;
-    //        }
-
-    //        dpp::message m = callback.get<dpp::message>();
-
-    //        m.set_content("edited");
-    //        apiDPP->message_edit(m);
-    //    });
+    //    m.set_content("----");
+    //    apiDPP->message_edit(m);
 
     //    std::this_thread::sleep_for(std::chrono::milliseconds(250));
     //}
