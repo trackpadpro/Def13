@@ -16,13 +16,11 @@
 
 bool authenticate();
 bool initializeMATLAB();
-void threadFFT(const dpp::snowflake channelID);
+void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr);
 std::unique_ptr<dpp::cluster> apiDPP;
 std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
 std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
 std::atomic<bool> activeFFT = false;
-
-std::atomic<bool> flagTest = false;
 
 int main(){
     if(!authenticate()||!initializeMATLAB()){
@@ -107,23 +105,25 @@ int main(){
                 return;
             }
 
-            activeFFT = true;
+            dpp::voiceconn* v = event.from->get_voice(event.command.guild_id);
 
             event.reply("beginning fft");
 
-            std::thread t(threadFFT, event.command.channel_id);
+            std::thread t(threadFFT, event.command.channel_id, v);
             t.detach();
         }
         else if(event.command.get_command_name()=="end"){
-            event.from->disconnect_voice(event.command.guild_id);
-
             activeFFT = false;
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(777)); //Allow thread processes to end
+
+            event.from->disconnect_voice(event.command.guild_id);
 
             event.reply(":saluting_face:");
         }
     });
 
-    apiDPP->on_voice_receive_combined([](const dpp::voice_receive_t& event){
+    apiDPP->on_voice_receive([](const dpp::voice_receive_t& event){
         if(activeFFT){
             std::basic_string<uint8_t> audio = event.audio_data;
 
@@ -212,16 +212,34 @@ bool initializeMATLAB(){
     return true;
 }
 
-void threadFFT(const dpp::snowflake channelID){
-    dpp::message m(channelID, "--");
+void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
+    static const size_t blankSize = 10000;
+    static uint8_t blankData[blankSize];
+    activeFFT = true;
+    std::string buf = "-";
+    dpp::message m(channelID, buf);
     m = apiDPP->message_create_sync(m);
+    auto tmr = std::chrono::high_resolution_clock::now();
 
-    //while(activeFFT){
-    //    //apiDPP->channel_typing(channelID);
+    while(activeFFT){
+        if(!voicePtr||!voicePtr->voiceclient||!voicePtr->voiceclient->is_ready()){
+            activeFFT = false;
 
-    //    m.set_content("----");
-    //    apiDPP->message_edit(m);
+            break;
+        }
 
-    //    std::this_thread::sleep_for(std::chrono::milliseconds(250));
-    //}
+        //Send blank audio through the bot in order to receive audio from the call
+        voicePtr->voiceclient->send_audio_raw((uint16_t*)blankData, blankSize);
+
+        //Prevent rate-limiting on message edits
+        if((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tmr)).count()>1080){
+            buf += '-';
+            m.set_content(buf);
+            apiDPP->message_edit(m);
+
+            tmr = std::chrono::high_resolution_clock::now();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    }
 }
