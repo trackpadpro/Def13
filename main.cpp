@@ -9,6 +9,7 @@
 #include <chrono>
 #include <atomic>
 #include <thread>
+#include <mutex>
 
 #include <dpp/dpp.h>
 #include <MatlabEngine.hpp>
@@ -21,6 +22,8 @@ std::unique_ptr<dpp::cluster> apiDPP;
 std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
 std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
 std::atomic<bool> activeFFT = false;
+std::mutex audioMut;
+std::vector<double> audioData;
 
 int main(){
     if(!authenticate()||!initializeMATLAB()){
@@ -125,9 +128,18 @@ int main(){
 
     apiDPP->on_voice_receive([](const dpp::voice_receive_t& event){
         if(activeFFT){
-            std::basic_string<uint8_t> audio = event.audio_data;
+            static std::basic_string<uint8_t> packet;
+            static size_t audioSize;
+            
+            packet = event.audio_data;
 
-            std::cout<<audio.data()<<std::endl;
+            audioMut.lock();
+            audioSize = audioData.size();
+            audioData.resize(audioSize+packet.size());
+            for(size_t i = 0; i<packet.size(); i++){
+                audioData[audioSize+i] = packet[i];
+            }
+            audioMut.unlock();
         }
     });
 
@@ -209,19 +221,25 @@ bool initializeMATLAB(){
         return false;
     }
 
+    apiMATLAB->evalAsync(u"addpath('scripts/')");
+
     return true;
 }
 
 void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
-    static const size_t blankSize = 10000;
+    static const size_t blankSize = 1000;
     static uint8_t blankData[blankSize];
     activeFFT = true;
     std::string buf = "-";
     dpp::message m(channelID, buf);
     m = apiDPP->message_create_sync(m);
+
     auto tmr = std::chrono::high_resolution_clock::now();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     while(activeFFT){
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
         if(!voicePtr||!voicePtr->voiceclient||!voicePtr->voiceclient->is_ready()){
             activeFFT = false;
 
@@ -237,9 +255,17 @@ void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
             m.set_content(buf);
             apiDPP->message_edit(m);
 
+            audioMut.lock();
+            matlab::data::TypedArray<double> audio = apiMATrix->createArray({1, audioData.size()}, audioData.begin(), audioData.end());
+            audioData.clear();
+            audioMut.unlock();
+
+            apiMATLAB->setVariable(u"audio", audio);
+
+            apiMATLAB->evalAsync(u"plot(audio);");
+            //apiMATLAB->evalAsync(u"audioFFT(audio);");
+
             tmr = std::chrono::high_resolution_clock::now();
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
     }
 }
