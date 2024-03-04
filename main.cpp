@@ -24,6 +24,7 @@ std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
 std::atomic<bool> activeFFT = false;
 std::mutex audioMut;
 std::vector<double> audioData;
+dpp::snowflake userID;
 
 int main(){
     if(!authenticate()||!initializeMATLAB()){
@@ -58,12 +59,12 @@ int main(){
 
                 ss<<std::setw(3)<<A[i][n-1]<<" |\n";
             }
-            
+
             ss<<"```the eigenvalues are\n```";
             buffer += ss.str();
 
             matlab::data::Array eT = apiMATLAB->feval(u"eig", A);
-            
+
             try{
                 matlab::data::TypedArray<float> e = eT;
 
@@ -102,7 +103,9 @@ int main(){
         }
         else if(event.command.get_command_name()=="fft"){
             dpp::guild* g = dpp::find_guild(event.command.guild_id);
-            if(!g->connect_member_voice(event.command.get_issuing_user().id)){
+            userID = event.command.get_issuing_user().id;
+
+            if(!g->connect_member_voice(userID)){
                 event.reply("unable to connect to user's voice channel");
 
                 return;
@@ -127,9 +130,10 @@ int main(){
     });
 
     apiDPP->on_voice_receive([](const dpp::voice_receive_t& event){
-        if(activeFFT){
+        if(activeFFT&&event.user_id==userID){
             static std::basic_string<uint8_t> packet;
             static size_t audioSize;
+            static int8_t clip;
             
             packet = event.audio_data;
 
@@ -137,7 +141,8 @@ int main(){
             audioSize = audioData.size();
             audioData.resize(audioSize+packet.size());
             for(size_t i = 0; i<packet.size(); i++){
-                audioData[audioSize+i] = packet[i];
+                clip = *(int8_t*)&packet[i]; //clip = packet[i] works too
+                audioData[audioSize+i] = clip;
             }
             audioMut.unlock();
         }
@@ -227,7 +232,7 @@ bool initializeMATLAB(){
 }
 
 void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
-    static const size_t blankSize = 1000;
+    static const size_t blankSize = 10000;
     static uint8_t blankData[blankSize];
     activeFFT = true;
     std::string buf = "-";
@@ -238,7 +243,7 @@ void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     while(activeFFT){
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
         if(!voicePtr||!voicePtr->voiceclient||!voicePtr->voiceclient->is_ready()){
             activeFFT = false;
@@ -250,7 +255,7 @@ void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
         voicePtr->voiceclient->send_audio_raw((uint16_t*)blankData, blankSize);
 
         //Prevent rate-limiting on message edits
-        if((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tmr)).count()>1080){
+        if((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tmr)).count()>4080){
             buf += '-';
             m.set_content(buf);
             apiDPP->message_edit(m);
@@ -262,8 +267,7 @@ void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
 
             apiMATLAB->setVariable(u"audio", audio);
 
-            apiMATLAB->evalAsync(u"plot(audio);");
-            //apiMATLAB->evalAsync(u"audioFFT(audio);");
+            apiMATLAB->evalAsync(u"audioFFT(audio);");
 
             tmr = std::chrono::high_resolution_clock::now();
         }
