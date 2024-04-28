@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
@@ -24,6 +25,7 @@ std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
 std::atomic<bool> activeFFT = false;
 std::mutex audioMut;
 std::vector<double> audioData;
+std::vector<dpp::snowflake> serverList;
 dpp::snowflake userID;
 
 int main(){
@@ -35,6 +37,21 @@ int main(){
 
     apiDPP->on_slashcommand([](const dpp::slashcommand_t& event){
         if(event.command.get_command_name()=="ping"){
+            if(event.command.get_issuing_user().id==116429793532182537){
+                dpp::snowflake serverCurrent = event.command.guild_id;
+
+                std::ofstream serverFile("./data/auth/servers.txt", std::ios::app);
+                if(!serverFile.good()){
+                    std::cout<<"Server file failed to open"<<std::endl;
+                }
+                else if(std::find(serverList.begin(), serverList.end(), serverCurrent)==serverList.end()){
+                    serverList.push_back(serverCurrent);
+                    serverFile<<serverCurrent<<'\n';
+                }
+
+                serverFile.close();
+            }
+
             event.reply("pong");
         }
         else if(event.command.get_command_name()=="repo"){
@@ -148,6 +165,18 @@ int main(){
         }
     });
 
+    apiDPP->on_message_create([](const dpp::message_create_t& event){
+        if(std::find(serverList.begin(), serverList.end(), event.msg.guild_id)!=serverList.end()){
+            std::string message = event.msg.content;
+
+            if(message.find("https://www.instagram")!=std::string::npos){
+                message.insert(12, "dd");
+
+                event.reply(message, true);
+            }
+        }
+    });
+
     apiDPP->on_ready([](const dpp::ready_t& event){
         if(dpp::run_once<struct setStatus>()){
             apiDPP->set_presence(dpp::presence(dpp::ps_online, dpp::at_custom, "Lounging"));
@@ -171,7 +200,7 @@ int main(){
 }
 
 bool authenticate(){
-    std::fstream auth;
+    std::fstream auth, serverFile;
     std::string tokenDiscord;
 
     auth.open("./data/auth/imin.txt", std::ios::in); //"I'm in"
@@ -202,7 +231,16 @@ bool authenticate(){
     }
     auth.close();
 
-    apiDPP = std::make_unique<dpp::cluster>(tokenDiscord);
+    apiDPP = std::make_unique<dpp::cluster>(tokenDiscord, dpp::i_default_intents|dpp::i_message_content);
+    dpp::snowflake server;
+
+    serverFile.open("./data/auth/servers.txt", std::ios::in);
+    if(serverFile.good()){
+        serverFile>>server;
+        serverList.push_back(server);
+
+        serverFile.close();
+    }
 
     return true;
 }
@@ -260,14 +298,16 @@ void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
             m.set_content(buf);
             apiDPP->message_edit(m);
 
-            audioMut.lock();
+            /*audioMut.lock();
             matlab::data::TypedArray<double> audio = apiMATrix->createArray({1, audioData.size()}, audioData.begin(), audioData.end());
             audioData.clear();
             audioMut.unlock();
 
             apiMATLAB->setVariable(u"audio", audio);
 
-            apiMATLAB->evalAsync(u"audioFFT(audio);");
+            apiMATLAB->evalAsync(u"audioFFT(audio);");*/
+
+            apiMATLAB->evalAsync(u"audioFFT();");
 
             tmr = std::chrono::high_resolution_clock::now();
         }

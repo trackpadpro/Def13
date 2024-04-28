@@ -1,4 +1,8 @@
 function [F] = audioFFT(x)
+    if(isa(x,'string'))
+        
+    end
+
     n = length(x);
     f = 48000; %48kHz Discord audio
     F = abs(fftshift(fft(x)));
