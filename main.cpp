@@ -172,6 +172,11 @@ int main(){
             if(message.find("https://www.instagram")!=std::string::npos){
                 message.insert(12, "dd");
 
+                size_t shareChars = message.find("?igsh=");
+                if(shareChars!=std::string::npos){
+                    message.erase(shareChars);
+                }
+
                 event.reply(message, true);
             }
         }
