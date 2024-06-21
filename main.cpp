@@ -168,13 +168,14 @@ int main(){
     apiDPP->on_message_create([](const dpp::message_create_t& event){
         if(std::find(serverList.begin(), serverList.end(), event.msg.guild_id)!=serverList.end()){
             std::string message = event.msg.content;
+            size_t strPos = message.find("https://www.instagram");
 
-            if(message.find("https://www.instagram")!=std::string::npos){
-                message.insert(12, "dd");
+            if(strPos!=std::string::npos){
+                message.insert(strPos+12, "dd");
 
-                size_t shareChars = message.find("?igsh=");
-                if(shareChars!=std::string::npos){
-                    message.erase(shareChars);
+                strPos = message.find("?igsh=");
+                if(strPos!=std::string::npos){
+                    message.erase(strPos);
                 }
 
                 event.reply(message, true);
