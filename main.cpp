@@ -206,7 +206,7 @@ int main(){
 }
 
 bool authenticate(){
-    std::fstream auth, serverFile;
+    std::fstream auth;
     std::string tokenDiscord;
 
     auth.open("./data/auth/imin.txt", std::ios::in); //"I'm in"
@@ -240,13 +240,12 @@ bool authenticate(){
     apiDPP = std::make_unique<dpp::cluster>(tokenDiscord, dpp::i_default_intents|dpp::i_message_content);
     dpp::snowflake server;
 
-    serverFile.open("./data/auth/servers.txt", std::ios::in);
-    if(serverFile.good()){
-        serverFile>>server;
+    auth.open("./data/auth/servers.txt", std::ios::in);
+    while(auth.good()){
+        auth>>server;
         serverList.push_back(server);
-
-        serverFile.close();
     }
+    auth.close();
 
     return true;
 }
