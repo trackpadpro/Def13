@@ -180,6 +180,15 @@ int main(){
 
                 event.reply(message, true);
             }
+            else{
+                strPos = message.find("https://www.tiktok");
+
+                if(strPos!=std::string::npos){
+                    message.insert(strPos+12, "vx");
+
+                    event.reply(message, true);
+                }
+            }
         }
     });
 
