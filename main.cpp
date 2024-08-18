@@ -167,26 +167,31 @@ int main(){
 
     apiDPP->on_message_create([](const dpp::message_create_t& event){
         if(std::find(serverList.begin(), serverList.end(), event.msg.guild_id)!=serverList.end()){
-            std::string message = event.msg.content;
-            size_t strPos = message.find("https://www.instagram");
+            std::string msgText = event.msg.content;
+            dpp::message msgOrigin = event.msg;
+            size_t strPos = msgText.find("https://www.instagram");
 
             if(strPos!=std::string::npos){
-                message.insert(strPos+12, "dd");
+                msgText.insert(strPos+12, "dd");
 
-                strPos = message.find("?igsh=");
+                strPos = msgText.find("?igsh=");
                 if(strPos!=std::string::npos){
-                    message.erase(strPos);
+                    msgText.erase(strPos);
                 }
 
-                event.reply(message, true);
+                event.reply(msgText, true);
+
+                apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
             }
             else{
-                strPos = message.find("https://www.tiktok");
+                strPos = msgText.find("https://www.tiktok");
 
                 if(strPos!=std::string::npos){
-                    message.insert(strPos+12, "vx");
+                    msgText.insert(strPos+12, "vx");
 
-                    event.reply(message, true);
+                    event.reply(msgText, true);
+
+                    apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
                 }
             }
         }
