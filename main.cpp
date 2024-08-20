@@ -17,21 +17,24 @@
 #include <MatlabDataArray.hpp>
 
 bool authenticate();
-bool initializeMATLAB();
+matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> initializeMATLAB();
 void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr);
 std::unique_ptr<dpp::cluster> apiDPP;
 std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
+matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> apiMATfut;
 std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
-std::atomic<bool> activeFFT = false;
+std::atomic<bool> activeMATLAB = false, activeFFT = false;
 std::mutex audioMut;
 std::vector<double> audioData;
 std::vector<dpp::snowflake> serverList;
 dpp::snowflake userID;
 
 int main(){
-    if(!authenticate()||!initializeMATLAB()){
+    if(!authenticate()){
         return 1;
     }
+
+    apiMATfut = initializeMATLAB();
 
     apiDPP->on_log(dpp::utility::cout_logger());
 
@@ -58,6 +61,24 @@ int main(){
             event.reply("https://github.com/trackpadpro/Def13");
         }
         else if(event.command.get_command_name()=="eig"){
+            if(!activeMATLAB){
+                try{
+                    apiMATLAB = apiMATfut.get();
+                }
+                catch(matlab::engine::EngineException){
+                    event.reply("MATLAB initialization failed");
+
+                    return;
+                }
+
+                apiMATrix = std::make_unique<matlab::data::ArrayFactory>();
+                activeMATLAB = true;
+
+                apiMATLAB->evalAsync(u"addpath('scripts/')");
+            }
+
+            srand(static_cast<u_int>(std::chrono::system_clock::now().time_since_epoch().count()));
+
             std::string buffer = "For the matrix\n";
             unsigned short n = rand()%3+2;
             matlab::data::TypedArray<float> A = apiMATrix->createArray<float>({n, n});
@@ -119,21 +140,42 @@ int main(){
             event.reply(buffer);
         }
         else if(event.command.get_command_name()=="fft"){
-            dpp::guild* g = dpp::find_guild(event.command.guild_id);
-            userID = event.command.get_issuing_user().id;
+            if(!activeMATLAB){
+                try{
+                    apiMATLAB = apiMATfut.get();
+                }
+                catch(matlab::engine::EngineException){
+                    event.reply("MATLAB initialization failed");
 
-            if(!g->connect_member_voice(userID)){
-                event.reply("unable to connect to user's voice channel");
+                    return;
+                }
 
-                return;
+                apiMATrix = std::make_unique<matlab::data::ArrayFactory>();
+                activeMATLAB = true;
+
+                apiMATLAB->eval(u"addpath('scripts/')");
             }
 
-            dpp::voiceconn* v = event.from->get_voice(event.command.guild_id);
+            if(std::find(serverList.begin(), serverList.end(), event.command.guild_id)!=serverList.end()){
+                dpp::guild* g = dpp::find_guild(event.command.guild_id);
+                userID = event.command.get_issuing_user().id;
 
-            event.reply("beginning fft");
+                if(!g->connect_member_voice(userID)){
+                    event.reply("unable to connect to user's voice channel");
 
-            std::thread t(threadFFT, event.command.channel_id, v);
-            t.detach();
+                    return;
+                }
+
+                dpp::voiceconn* v = event.from->get_voice(event.command.guild_id);
+
+                event.reply("beginning fft");
+
+                std::thread t(threadFFT, event.command.channel_id, v);
+                t.detach();
+            }
+            else{
+                event.reply("server not authorized");
+            }
         }
         else if(event.command.get_command_name()=="end"){
             activeFFT = false;
@@ -264,28 +306,18 @@ bool authenticate(){
     return true;
 }
 
-bool initializeMATLAB(){
-    try{
-        std::vector<matlab::engine::String> MATLABsessions = matlab::engine::findMATLAB();
+matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> initializeMATLAB(){
+    std::vector<matlab::engine::String> MATLABsessions = matlab::engine::findMATLAB();
+    matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> result;
 
-        if(MATLABsessions.empty()){
-            apiMATLAB = matlab::engine::startMATLAB();
-        }
-        else{
-            apiMATLAB = matlab::engine::connectMATLAB();
-        }
-
-        apiMATrix = std::make_unique<matlab::data::ArrayFactory>();
+    if(MATLABsessions.empty()){
+        result = matlab::engine::startMATLABAsync();
     }
-    catch(matlab::engine::EngineException){
-        std::cout<<"MATLAB initialization failed"<<std::endl;
-
-        return false;
+    else{
+        result = matlab::engine::connectMATLABAsync();
     }
 
-    apiMATLAB->evalAsync(u"addpath('scripts/')");
-
-    return true;
+    return result;
 }
 
 void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
