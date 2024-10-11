@@ -220,6 +220,12 @@ int main(){
                 if(strPos!=std::string::npos){
                     msgText.erase(strPos);
                 }
+                else{
+                    strPos = msgText.find("?utm_source=");
+                    if(strPos!=std::string::npos){
+                        msgText.erase(strPos);
+                    }
+                }
 
                 event.reply(msgText, true);
 
