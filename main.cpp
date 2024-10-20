@@ -232,7 +232,17 @@ int main(){
                 apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
             }
             else{
-                strPos = msgText.find("https://www.tiktok");
+                strPos = msgText.find("https://www.reddit");
+
+                if(strPos!=std::string::npos){
+                    msgText.replace(strPos+13, 1, "x");
+
+                    event.reply(msgText, true);
+
+                    apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
+                }
+                
+                /*strPos = msgText.find("https://www.tiktok");
 
                 if(strPos!=std::string::npos){
                     msgText.insert(strPos+12, "vx");
@@ -240,7 +250,7 @@ int main(){
                     event.reply(msgText, true);
 
                     apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
-                }
+                }*/
             }
         }
     });
