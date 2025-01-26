@@ -227,6 +227,11 @@ int main(){
                     }
                 }
 
+                strPos = msgText.find("/reel/");
+                if(strPos!=std::string::npos){
+                    msgText.insert(strPos+5, "s");
+                }
+
                 event.reply(msgText, true);
 
                 apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
