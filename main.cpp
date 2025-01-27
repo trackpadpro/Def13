@@ -209,50 +209,64 @@ int main(){
 
     apiDPP->on_message_create([](const dpp::message_create_t& event){
         if(std::find(serverList.begin(), serverList.end(), event.msg.guild_id)!=serverList.end()){
-            std::string msgText = event.msg.content;
+            std::string msgTxt = event.msg.content;
             dpp::message msgOrigin = event.msg;
-            size_t strPos = msgText.find("https://www.instagram");
+            size_t strPos = msgTxt.find("https://www.instagram");
 
             if(strPos!=std::string::npos){
-                msgText.insert(strPos+12, "dd");
+                bool send = true;
 
-                strPos = msgText.find("?igsh=");
+                msgTxt.insert(strPos+12, "dd");
+
+                strPos = msgTxt.find("?igsh=");
                 if(strPos!=std::string::npos){
-                    msgText.erase(strPos);
+                    msgTxt.erase(strPos);
                 }
                 else{
-                    strPos = msgText.find("?utm_source=");
+                    strPos = msgTxt.find("?utm_source=");
                     if(strPos!=std::string::npos){
-                        msgText.erase(strPos);
+                        msgTxt.erase(strPos);
                     }
                 }
 
-                strPos = msgText.find("/reel/");
+                strPos = msgTxt.find("/reel/");
                 if(strPos!=std::string::npos){
-                    msgText.insert(strPos+5, "s");
+                    msgTxt.insert(strPos+5, "s");
                 }
 
-                event.reply(msgText, true);
+                strPos = msgTxt.find("/p/");
+                if(strPos!=std::string::npos){
+                    msgTxt.replace(strPos+1, 1, "reels");
 
-                apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
+                    //Check if post is public
+                    if(msgTxt.length()>=strPos+20){
+                        send = false;
+                    }
+                }
+
+                if(send){
+                    event.reply(msgTxt, true);
+
+                    apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
+                }
             }
             else{
-                strPos = msgText.find("https://www.reddit");
+                strPos = msgTxt.find("https://www.reddit");
 
                 if(strPos!=std::string::npos){
-                    msgText.replace(strPos+13, 1, "x");
+                    msgTxt.replace(strPos+13, 1, "x");
 
-                    event.reply(msgText, true);
+                    event.reply(msgTxt, true);
 
                     apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
                 }
                 
-                /*strPos = msgText.find("https://www.tiktok");
+                /*strPos = msgTxt.find("https://www.tiktok");
 
                 if(strPos!=std::string::npos){
-                    msgText.insert(strPos+12, "vx");
+                    msgTxt.insert(strPos+12, "vx");
 
-                    event.reply(msgText, true);
+                    event.reply(msgTxt, true);
 
                     apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
                 }*/
