@@ -3,29 +3,35 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
-#include <complex>
 #include <memory>
 #include <vector>
 #include <string>
 #include <chrono>
-#include <atomic>
-#include <thread>
-#include <mutex>
+
 
 #include <dpp/dpp.h>
-#include <MatlabEngine.hpp>
-#include <MatlabDataArray.hpp>
+
+#ifdef MATLAB
+    #include <complex>
+    #include <atomic>
+    #include <thread>
+    #include <mutex>    
+
+    #include <MatlabEngine.hpp>
+    #include <MatlabDataArray.hpp>
+
+    void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr);
+    matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> initializeMATLAB();
+    std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
+    matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> apiMATfut;
+    std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
+    std::atomic<bool> activeMATLAB = false, activeFFT = false;
+    std::mutex audioMut;
+    std::vector<double> audioData;
+#endif
 
 bool authenticate();
-matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> initializeMATLAB();
-void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr);
 std::unique_ptr<dpp::cluster> apiDPP;
-std::unique_ptr<matlab::engine::MATLABEngine> apiMATLAB;
-matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> apiMATfut;
-std::unique_ptr<matlab::data::ArrayFactory> apiMATrix;
-std::atomic<bool> activeMATLAB = false, activeFFT = false;
-std::mutex audioMut;
-std::vector<double> audioData;
 std::vector<dpp::snowflake> serverList;
 dpp::snowflake userID;
 
@@ -34,7 +40,9 @@ int main(){
         return 1;
     }
 
+#ifdef MATLAB
     apiMATfut = initializeMATLAB();
+#endif
 
     apiDPP->on_log(dpp::utility::cout_logger());
 
@@ -60,6 +68,7 @@ int main(){
         else if(event.command.get_command_name()=="repo"){
             event.reply("https://github.com/trackpadpro/Def13");
         }
+#ifdef MATLAB
         else if(event.command.get_command_name()=="eig"){
             if(!activeMATLAB){
                 try{
@@ -186,8 +195,10 @@ int main(){
 
             event.reply(":saluting_face:");
         }
+#endif
     });
 
+#ifdef MATLAB
     apiDPP->on_voice_receive([](const dpp::voice_receive_t& event){
         if(activeFFT&&event.user_id==userID){
             static std::basic_string<uint8_t> packet;
@@ -206,6 +217,7 @@ int main(){
             audioMut.unlock();
         }
     });
+#endif
 
     apiDPP->on_message_create([](const dpp::message_create_t& event){
         if(std::find(serverList.begin(), serverList.end(), event.msg.guild_id)!=serverList.end()){
@@ -283,9 +295,11 @@ int main(){
             apiDPP->global_bulk_command_create({
                 dpp::slashcommand("ping", "ping pong", apiDPP->me.id),
                 dpp::slashcommand("repo", "source code", apiDPP->me.id),
+#ifdef MATLAB
                 dpp::slashcommand("eig", "eigenvalue of matrix", apiDPP->me.id),
                 dpp::slashcommand("fft", "conducts a fast Fourier transform on your voice", apiDPP->me.id),
                 dpp::slashcommand("end", "leave voice channel", apiDPP->me.id)
+#endif
             }); 
         }
     });
@@ -341,61 +355,63 @@ bool authenticate(){
     return true;
 }
 
-matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> initializeMATLAB(){
-    std::vector<matlab::engine::String> MATLABsessions = matlab::engine::findMATLAB();
-    matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> result;
+#ifdef MATLAB
+    matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> initializeMATLAB(){
+        std::vector<matlab::engine::String> MATLABsessions = matlab::engine::findMATLAB();
+        matlab::engine::FutureResult<std::unique_ptr<matlab::engine::MATLABEngine>> result;
 
-    if(MATLABsessions.empty()){
-        result = matlab::engine::startMATLABAsync();
-    }
-    else{
-        result = matlab::engine::connectMATLABAsync();
-    }
-
-    return result;
-}
-
-void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
-    static const size_t blankSize = 10000;
-    static uint8_t blankData[blankSize];
-    activeFFT = true;
-    std::string buf = "-";
-    dpp::message m(channelID, buf);
-    m = apiDPP->message_create_sync(m);
-
-    auto tmr = std::chrono::high_resolution_clock::now();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-    while(activeFFT){
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-
-        if(!voicePtr||!voicePtr->voiceclient||!voicePtr->voiceclient->is_ready()){
-            activeFFT = false;
-
-            break;
+        if(MATLABsessions.empty()){
+            result = matlab::engine::startMATLABAsync();
+        }
+        else{
+            result = matlab::engine::connectMATLABAsync();
         }
 
-        //Send blank audio through the bot in order to receive audio from the call
-        voicePtr->voiceclient->send_audio_raw((uint16_t*)blankData, blankSize);
+        return result;
+    }
 
-        //Prevent rate-limiting on message edits
-        if((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tmr)).count()>4080){
-            buf += '-';
-            m.set_content(buf);
-            apiDPP->message_edit(m);
+    void threadFFT(const dpp::snowflake channelID, const dpp::voiceconn* voicePtr){
+        static const size_t blankSize = 10000;
+        static uint8_t blankData[blankSize];
+        activeFFT = true;
+        std::string buf = "-";
+        dpp::message m(channelID, buf);
+        m = apiDPP->message_create_sync(m);
 
-            /*audioMut.lock();
-            matlab::data::TypedArray<double> audio = apiMATrix->createArray({1, audioData.size()}, audioData.begin(), audioData.end());
-            audioData.clear();
-            audioMut.unlock();
+        auto tmr = std::chrono::high_resolution_clock::now();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-            apiMATLAB->setVariable(u"audio", audio);
+        while(activeFFT){
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
-            apiMATLAB->evalAsync(u"audioFFT(audio);");*/
+            if(!voicePtr||!voicePtr->voiceclient||!voicePtr->voiceclient->is_ready()){
+                activeFFT = false;
 
-            apiMATLAB->evalAsync(u"audioFFT();");
+                break;
+            }
 
-            tmr = std::chrono::high_resolution_clock::now();
+            //Send blank audio through the bot in order to receive audio from the call
+            voicePtr->voiceclient->send_audio_raw((uint16_t*)blankData, blankSize);
+
+            //Prevent rate-limiting on message edits
+            if((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tmr)).count()>4080){
+                buf += '-';
+                m.set_content(buf);
+                apiDPP->message_edit(m);
+
+                /*audioMut.lock();
+                matlab::data::TypedArray<double> audio = apiMATrix->createArray({1, audioData.size()}, audioData.begin(), audioData.end());
+                audioData.clear();
+                audioMut.unlock();
+
+                apiMATLAB->setVariable(u"audio", audio);
+
+                apiMATLAB->evalAsync(u"audioFFT(audio);");*/
+
+                apiMATLAB->evalAsync(u"audioFFT();");
+
+                tmr = std::chrono::high_resolution_clock::now();
+            }
         }
     }
-}
+#endif
