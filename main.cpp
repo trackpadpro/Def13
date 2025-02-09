@@ -8,7 +8,7 @@
 #include <string>
 #include <chrono>
 
-
+#include <curl/curl.h>
 #include <dpp/dpp.h>
 
 #ifdef MATLAB
@@ -189,7 +189,7 @@ int main(){
         else if(event.command.get_command_name()=="end"){
             activeFFT = false;
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(777)); //Allow thread processes to end
+            std::this_thread::sleep_for(std::chrono::milliseconds(777)); //allow thread processes to end
 
             event.from->disconnect_voice(event.command.guild_id);
 
@@ -223,21 +223,72 @@ int main(){
         if(std::find(serverList.begin(), serverList.end(), event.msg.guild_id)!=serverList.end()){
             std::string msgTxt = event.msg.content;
             dpp::message msgOrigin = event.msg;
-            size_t strPos = msgTxt.find("https://www.instagram");
 
+            size_t strPos = msgTxt.find("https://www.instagram");
             if(strPos!=std::string::npos){
                 bool send = true;
+
+                size_t strPos2 = msgTxt.find("/share/");
+                if(strPos2!=std::string::npos){
+                    send = false;
+
+                    strPos2 = msgTxt.find(' ', strPos2);
+                    if(strPos2!=std::string::npos){
+                        strPos2 = strPos2-strPos; //set strPos2 to length of URL
+                    }
+                    
+                    CURL* curl = curl_easy_init();
+                    if(curl){
+                        CURLcode res;
+                        curl_easy_setopt(curl, CURLOPT_URL, (msgTxt.substr(strPos, strPos2)+'/').data());
+                        //mimic browser to avoid https://www.facebook.com/unsupportedbrowser redirect
+                        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Chrome/51.0.2704.64 Safari/537.36");
+                        res = curl_easy_perform(curl);
+                        if(res==CURLE_OK){
+                            char* url = NULL;
+                            curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL, &url);
+                            if(url){
+                                msgTxt.replace(strPos, strPos2, url);
+
+                                strPos2 = msgTxt.find("/p/");
+                                if(strPos2!=std::string::npos){
+                                    send = true;
+                                }
+                                else{
+                                    strPos2 = msgTxt.find("/reel");
+                                    if(strPos2!=std::string::npos){
+                                        send = true;
+                                    }
+                                }
+                            }
+                        }
+                        else{
+                            std::cout<<msgTxt.substr(strPos, strPos2)+"/ "<<res<<std::endl;
+                        }
+                        curl_easy_cleanup(curl);
+                    }
+                }
 
                 msgTxt.insert(strPos+12, "dd");
 
                 strPos = msgTxt.find("?igsh=");
                 if(strPos!=std::string::npos){
-                    msgTxt.erase(strPos);
+                    strPos2 = msgTxt.find(' ', strPos);
+                    if(strPos2!=std::string::npos){
+                        strPos2 = strPos2-strPos; //set strPos2 to length of igsh code
+                    }
+
+                    msgTxt.erase(strPos, strPos2);
                 }
                 else{
                     strPos = msgTxt.find("?utm_source=");
                     if(strPos!=std::string::npos){
-                        msgTxt.erase(strPos);
+                        strPos2 = msgTxt.find(' ', strPos);
+                        if(strPos2!=std::string::npos){
+                            strPos2 = strPos2-strPos; //set strPos2 to length of utm code
+                        }
+
+                        msgTxt.erase(strPos, strPos2);
                     }
                 }
 
@@ -250,8 +301,16 @@ int main(){
                 if(strPos!=std::string::npos){
                     msgTxt.replace(strPos+1, 1, "reels");
 
-                    //Check if post is public
-                    if(msgTxt.length()>=strPos+20){
+                    //check if post is public
+                    strPos2 = msgTxt.find(' ', strPos);
+                    if(strPos2!=std::string::npos){
+                        strPos2 = strPos2-strPos; //set strPos2 to length of post_id
+                    }
+                    else{
+						strPos2 = msgTxt.length(); //set strPos2 to length of string
+                    }
+
+                    if(strPos2>=strPos+20){
                         send = false;
                     }
                 }
@@ -272,16 +331,17 @@ int main(){
 
                     apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
                 }
-                
-                /*strPos = msgTxt.find("https://www.tiktok");
+                else{
+                    strPos = msgTxt.find("https://www.ddinstagram.com/reel/");
 
-                if(strPos!=std::string::npos){
-                    msgTxt.insert(strPos+12, "vx");
+                    if(strPos!=std::string::npos){
+                        msgTxt.insert(strPos+32, "s");
 
-                    event.reply(msgTxt, true);
+                        event.reply(msgTxt, true);
 
-                    apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
-                }*/
+                        apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
+                    }
+                }
             }
         }
     });
@@ -304,7 +364,7 @@ int main(){
         }
     });
 
-    //Await events
+    //await events
     apiDPP->start(dpp::st_wait);
 
     return 0;
@@ -390,10 +450,10 @@ bool authenticate(){
                 break;
             }
 
-            //Send blank audio through the bot in order to receive audio from the call
+            //send blank audio through the bot in order to receive audio from the call
             voicePtr->voiceclient->send_audio_raw((uint16_t*)blankData, blankSize);
 
-            //Prevent rate-limiting on message edits
+            //prevent rate-limiting on message edits
             if((std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tmr)).count()>4080){
                 buf += '-';
                 m.set_content(buf);
