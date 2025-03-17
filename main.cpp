@@ -224,7 +224,7 @@ int main(){
             std::string msgTxt = event.msg.content;
             dpp::message msgOrigin = event.msg;
 
-            size_t strPos = msgTxt.find("https://www.instagram");
+            size_t strPos = msgTxt.find("https://www.instagram.");
             if(strPos!=std::string::npos){
                 bool send = true;
 
@@ -299,8 +299,6 @@ int main(){
 
                 strPos = msgTxt.find("/p/");
                 if(strPos!=std::string::npos){
-                    msgTxt.replace(strPos+1, 1, "reels");
-
                     //check if post is public
                     strPos2 = msgTxt.find(' ', strPos);
                     if(strPos2!=std::string::npos){
@@ -330,17 +328,6 @@ int main(){
                     event.reply(msgTxt, true);
 
                     apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
-                }
-                else{
-                    strPos = msgTxt.find("https://www.ddinstagram.com/reel/");
-
-                    if(strPos!=std::string::npos){
-                        msgTxt.insert(strPos+32, "s");
-
-                        event.reply(msgTxt, true);
-
-                        apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
-                    }
                 }
             }
         }
