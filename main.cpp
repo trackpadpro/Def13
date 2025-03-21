@@ -269,7 +269,7 @@ int main(){
                     }
                 }
 
-                msgTxt.insert(strPos+12, "dd");
+                msgTxt.insert(strPos+21, "ez");
 
                 strPos = msgTxt.find("?igsh=");
                 if(strPos!=std::string::npos){
