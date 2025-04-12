@@ -269,27 +269,17 @@ int main(){
                     }
                 }
 
+                //msgTxt.insert(strPos+12, "dd");
                 msgTxt.insert(strPos+21, "ez");
 
-                strPos = msgTxt.find("?igsh=");
+                strPos = msgTxt.find("/?");
                 if(strPos!=std::string::npos){
                     strPos2 = msgTxt.find(' ', strPos);
                     if(strPos2!=std::string::npos){
                         strPos2 = strPos2-strPos; //set strPos2 to length of igsh code
                     }
 
-                    msgTxt.erase(strPos, strPos2);
-                }
-                else{
-                    strPos = msgTxt.find("?utm_source=");
-                    if(strPos!=std::string::npos){
-                        strPos2 = msgTxt.find(' ', strPos);
-                        if(strPos2!=std::string::npos){
-                            strPos2 = strPos2-strPos; //set strPos2 to length of utm code
-                        }
-
-                        msgTxt.erase(strPos, strPos2);
-                    }
+                    msgTxt.erase(strPos+1, strPos2);
                 }
 
                 strPos = msgTxt.find("/reel/");
@@ -305,7 +295,7 @@ int main(){
                         strPos2 = strPos2-strPos; //set strPos2 to length of post_id
                     }
                     else{
-						strPos2 = msgTxt.length(); //set strPos2 to length of string
+                        strPos2 = msgTxt.length(); //set strPos2 to length of string
                     }
 
                     if(strPos2>=strPos+20){
