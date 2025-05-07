@@ -269,8 +269,9 @@ int main(){
                     }
                 }
 
+                msgTxt.insert(strPos+12, "kk");
                 //msgTxt.insert(strPos+12, "dd");
-                msgTxt.insert(strPos+21, "ez");
+                //msgTxt.insert(strPos+21, "ez");
 
                 strPos = msgTxt.find("/?");
                 if(strPos!=std::string::npos){
