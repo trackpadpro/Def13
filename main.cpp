@@ -320,6 +320,17 @@ int main(){
 
                     apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
                 }
+                else{
+                    strPos = msgTxt.find("https://www.tiktok");
+
+                    if(strPos!=std::string::npos){
+                        msgTxt.replace(strPos+13, 1, "fx");
+
+                        event.reply(msgTxt, true);
+
+                        apiDPP->message_edit_flags(msgOrigin.suppress_embeds(true));
+                    }
+                }
             }
         }
     });
